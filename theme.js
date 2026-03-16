@@ -1067,7 +1067,8 @@ function coalesce(...values) {
 }
 
 function wrapIndex(index, length) {
-    return (index + length) % length;
+    if (!length) return 0;
+    return ((index % length) + length) % length;
 }
 
 function escapeHtml(value) {
