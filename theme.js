@@ -572,6 +572,7 @@ function updatePreviewFooter(view, data) {
 function updateFlyer(view, data) {
     if (!view.previewFlyerSlot) return;
     view.previewFlyerSlot.innerHTML = "";
+    view.previewFlyerSlot.style.height = "";
 
     if (!hasUsableMedia(data.flyerUrl)) return;
 
@@ -611,11 +612,17 @@ function updateFeatureStrip(container, items) {
 
 function updatePreview(container, data, allowVideo = true) {
     const target = tableView?.previewTableSlot || container;
-    const currentLayer = target.querySelector(".es-preview-layer");
+    const existingLayers = Array.from(target.querySelectorAll(".es-preview-layer"));
+    const transitionInFlight = existingLayers.some((layer) => layer.classList.contains("is-entering"));
     const token = ++previewSwapToken;
     const incoming = document.createElement("div");
     incoming.className = "es-preview-layer is-entering";
     incoming.dataset.url = data.tableUrl;
+
+    if (transitionInFlight || existingLayers.length > 1) {
+        target.replaceChildren();
+        existingLayers.length = 0;
+    }
 
     const poster = document.createElement("img");
     poster.src = data.tableUrl;
@@ -627,13 +634,18 @@ function updatePreview(container, data, allowVideo = true) {
     target.appendChild(incoming);
 
     const activate = () => {
-        if (token !== previewSwapToken) return;
+        if (token !== previewSwapToken) {
+            incoming.remove();
+            return;
+        }
         requestAnimationFrame(() => {
             incoming.classList.remove("is-entering");
-            if (currentLayer) {
-                currentLayer.classList.add("is-exiting");
-                setTimeout(() => currentLayer.remove(), 220);
-            }
+            Array.from(target.querySelectorAll(".es-preview-layer"))
+                .filter((layer) => layer !== incoming)
+                .forEach((layer) => {
+                    layer.classList.add("is-exiting");
+                    setTimeout(() => layer.remove(), 220);
+                });
             syncFlyerToPreviewHeight(tableView);
         });
     };
@@ -647,7 +659,10 @@ function updatePreview(container, data, allowVideo = true) {
 
     clearTimeout(mediaDelayTimer);
     mediaDelayTimer = setTimeout(() => {
-        if (token !== previewSwapToken || !allowVideo || !hasUsableMedia(data.tableVideoUrl)) return;
+        if (token !== previewSwapToken || !allowVideo || !hasUsableMedia(data.tableVideoUrl)) {
+            if (token !== previewSwapToken) incoming.remove();
+            return;
+        }
 
         const video = document.createElement("video");
         video.src = data.tableVideoUrl;
@@ -657,7 +672,10 @@ function updatePreview(container, data, allowVideo = true) {
         video.muted = true;
         video.playsInline = true;
         video.addEventListener("loadeddata", () => {
-            if (token !== previewSwapToken || !incoming.isConnected) return;
+            if (token !== previewSwapToken || !incoming.isConnected) {
+                incoming.remove();
+                return;
+            }
             incoming.replaceChildren(video);
             requestAnimationFrame(() => syncFlyerToPreviewHeight(tableView));
         }, { once: true });
