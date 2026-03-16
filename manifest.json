@@ -1,0 +1,10 @@
+{
+  "name": "Texal Flyer",
+  "version": "1.0",
+  "author": "superhac",
+  "description": "An ES-inspired desktop pinball showcase theme with media-rich browsing and animated selection flow.",
+  "preview_image": "preview.png",
+  "supported_screens": 3,
+  "type": "desktop",
+  "change_log": "Rebuilt Template into an ES-inspired desktop pinball showcase with GSAP-driven panel motion."
+}
