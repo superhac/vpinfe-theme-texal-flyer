@@ -18,101 +18,6 @@ let selectorFrameTimeline = null;
 
 const mediaPreloadCache = new Map();
 
-const tableAudio = {
-    audio: Object.assign(new Audio(), { loop: true }),
-    fadeId: null,
-    fadeDuration: 500,
-    maxVolume: 0.8,
-    currentUrl: null,
-
-    play(url, retries = 3) {
-        if (!url) {
-            this.stop();
-            return;
-        }
-        if (this.currentUrl === url && !this.audio.paused) return;
-
-        const audio = this.audio;
-        clearInterval(this.fadeId);
-        audio.pause();
-        audio.volume = 0;
-        audio.src = url;
-        this.currentUrl = url;
-
-        audio.play().then(() => {
-            if (this.currentUrl === url) this._fade(0, this.maxVolume);
-        }).catch((e) => {
-            if (e.name === "NotAllowedError") {
-                this._retries = retries;
-                this._triggerWhenReady(url);
-            } else if (retries > 0 && this.currentUrl === url) {
-                setTimeout(() => this.play(url, retries - 1), 1000);
-            }
-        });
-    },
-
-    _triggerWhenReady(url) {
-        if (this.currentUrl !== url) return;
-        if (this.audio.readyState >= 2) {
-            vpin.call("trigger_audio_play").catch(() => {});
-        } else {
-            this.audio.addEventListener("canplay", () => {
-                if (this.currentUrl === url) {
-                    vpin.call("trigger_audio_play").catch(() => {});
-                }
-            }, { once: true });
-        }
-    },
-
-    _resumePlay() {
-        const url = this.currentUrl;
-        const retries = this._retries || 0;
-        if (!url) return;
-        this.audio.play().then(() => {
-            if (this.currentUrl === url) this._fade(0, this.maxVolume);
-        }).catch(() => {
-            if (retries > 0 && this.currentUrl === url) {
-                this._retries = retries - 1;
-                setTimeout(() => this._triggerWhenReady(url), 500);
-            }
-        });
-    },
-
-    stop() {
-        if (this.audio && !this.audio.paused) {
-            this._fade(this.audio.volume, 0, () => {
-                this.audio.pause();
-                this.currentUrl = null;
-            });
-        } else {
-            clearInterval(this.fadeId);
-            this.currentUrl = null;
-        }
-    },
-
-    _fade(from, to, onComplete) {
-        clearInterval(this.fadeId);
-        const audio = this.audio;
-        if (!audio) {
-            if (onComplete) onComplete();
-            return;
-        }
-        audio.volume = from;
-        const steps = this.fadeDuration / 20;
-        const delta = (to - from) / steps;
-        this.fadeId = setInterval(() => {
-            const next = audio.volume + delta;
-            if ((delta > 0 && next >= to) || (delta < 0 && next <= to) || delta === 0) {
-                audio.volume = to;
-                clearInterval(this.fadeId);
-                if (onComplete) onComplete();
-            } else {
-                audio.volume = next;
-            }
-        }, 20);
-    }
-};
-
 const vpin = new VPinFECore();
 vpin.init();
 window.vpin = vpin;
@@ -135,19 +40,19 @@ async function receiveEvent(message) {
         currentTableIndex = message.index;
         updateScreen();
     } else if (message.type === "TableLaunching") {
-        tableAudio.stop();
+        if (windowName === "table") vpin.stopTableAudio();
         fadeOut();
     } else if (message.type === "TableLaunchComplete") {
         fadeIn();
-        if (windowName === "table") tableAudio.play(vpin.getAudioURL(currentTableIndex));
+        if (windowName === "table") vpin.playTableAudio(currentTableIndex);
     } else if (message.type === "RemoteLaunching") {
-        tableAudio.stop();
+        if (windowName === "table") vpin.stopTableAudio();
         showRemoteLaunchOverlay(message.table_name);
         fadeOut();
     } else if (message.type === "RemoteLaunchComplete") {
         hideRemoteLaunchOverlay();
         fadeIn();
-        if (windowName === "table") tableAudio.play(vpin.getAudioURL(currentTableIndex));
+        if (windowName === "table") vpin.playTableAudio(currentTableIndex);
     } else if (message.type === "TableDataChange") {
         currentTableIndex = message.index;
         updateScreen();
@@ -175,7 +80,7 @@ async function handleInput(input) {
             });
             break;
         case "joyselect":
-            tableAudio.stop();
+            if (windowName === "table") vpin.stopTableAudio();
             vpin.sendMessageToAllWindows({ type: "TableLaunching" });
             await fadeOut();
             await vpin.launchTable(currentTableIndex);
@@ -188,7 +93,7 @@ async function handleInput(input) {
 function updateScreen() {
     if (windowName === "table") {
         updateTableWindow();
-        tableAudio.play(vpin.getAudioURL(currentTableIndex));
+        vpin.playTableAudio(currentTableIndex);
         preloadNearbyMedia();
     } else if (windowName === "bg") {
         updateBGWindow();
@@ -298,6 +203,10 @@ function ensureTableView(container) {
                                 <h2 class="es-tag-title">Add-ons</h2>
                                 <div class="es-tag-strip es-addon-strip"></div>
                             </section>
+                            <section class="es-tag-panel es-stats-panel">
+                                <h2 class="es-tag-title">Stats</h2>
+                                <div class="es-user-stats"></div>
+                            </section>
                         </div>
                     </div>
                     <div class="es-preview-column">
@@ -367,6 +276,7 @@ function ensureTableView(container) {
         previewTableSlot: theme.querySelector(".es-preview-table-slot"),
         previewFlyerSlot: theme.querySelector(".es-preview-flyer-slot"),
         previewMeta: theme.querySelector(".es-preview-meta"),
+        userStats: theme.querySelector(".es-user-stats"),
         featureStrip: theme.querySelector(".es-feature-strip"),
         addonStrip: theme.querySelector(".es-addon-strip"),
         listSelector: theme.querySelector(".es-list-selector"),
@@ -380,6 +290,7 @@ function getDisplayData(index) {
     const table = vpin.getTableMeta(index);
     const info = table.meta.Info || {};
     const vpx = table.meta.VPXFile || {};
+    const user = table.meta.User || {};
 
     const title = info.Title || vpx.filename || table.tableDirName || "Unknown Table";
     const manufacturer = info.Manufacturer || vpx.manufacturer || "Unknown";
@@ -389,6 +300,9 @@ function getDisplayData(index) {
     const plays = coalesce(info.playcount, info.PlayCount, vpx.playcount, vpx.PlayCount, "Unknown");
     const lastPlayed = coalesce(info.lastplayed, info.LastPlayed, vpx.lastplayed, vpx.LastPlayed, "Unknown");
     const rating = coalesce(info.rating, info.Rating, vpx.rating, vpx.Rating, "N/A");
+    const startCount = Number.parseInt(coalesce(user.StartCount, user.startcount, 0), 10);
+    const runtimeMinutes = Number.parseInt(coalesce(user.RunTime, user.runtime, 0), 10);
+    const lastRunUnix = Number.parseInt(coalesce(user.LastRun, user.lastrun, 0), 10);
 
     return {
         index,
@@ -400,6 +314,10 @@ function getDisplayData(index) {
         plays: String(plays),
         lastPlayed: formatLastPlayed(lastPlayed),
         rating: String(rating),
+        startCount: Number.isFinite(startCount) && startCount >= 0 ? startCount : 0,
+        runtimeMinutes: Number.isFinite(runtimeMinutes) && runtimeMinutes >= 0 ? runtimeMinutes : 0,
+        lastRunUnix: Number.isFinite(lastRunUnix) && lastRunUnix > 0 ? lastRunUnix : 0,
+        lastRunText: formatUnixLastRun(lastRunUnix),
         synopsis: getSynopsis(info, vpx, title, manufacturer, year, type),
         wheelUrl: vpin.getImageURL(index, "wheel"),
         cabUrl: vpin.getImageURL(index, "cab"),
@@ -539,6 +457,25 @@ function updateSystemHeader(view, data) {
 
 function updateMetadata(view, data) {
     view.metaGrid.innerHTML = "";
+
+    if (!view.userStats) return;
+
+    const playsLabel = data.startCount === 1 ? "Play" : "Plays";
+    const minutesLabel = data.runtimeMinutes === 1 ? "Minute" : "Minutes";
+    view.userStats.innerHTML = `
+        <span class="es-user-stat">
+            <em>${playsLabel}</em>
+            <strong>${escapeHtml(data.startCount)}</strong>
+        </span>
+        <span class="es-user-stat">
+            <em>${minutesLabel}</em>
+            <strong>${escapeHtml(data.runtimeMinutes)}</strong>
+        </span>
+        <span class="es-user-stat" title="${data.lastRunUnix ? `Unix: ${escapeHtml(data.lastRunUnix)}` : ""}">
+            <em>Last Played</em>
+            <strong>${escapeHtml(data.lastRunText)}</strong>
+        </span>
+    `;
 }
 
 function updatePreviewFooter(view, data) {
@@ -721,7 +658,7 @@ function animateTableSelection(view) {
     if (!window.gsap) return;
 
     const direction = lastMoveDirection === 0 ? 1 : lastMoveDirection;
-    const headerTargets = [view.headerWheel, view.titleText, view.authorText, view.previewMeta].filter(Boolean);
+    const headerTargets = [view.headerWheel, view.titleText, view.authorText, view.previewMeta, view.userStats].filter(Boolean);
     const badgePanels = view.theme.querySelectorAll(".es-tag-panel");
     const badgeTargets = Array.from(badgePanels);
     const badgeChildren = badgeTargets.flatMap((panel) => {
@@ -1037,6 +974,22 @@ function formatLastPlayed(value) {
     const text = String(value).trim();
     if (!text) return "Unknown";
     return text;
+}
+
+function formatUnixLastRun(value) {
+    const unix = Number.parseInt(value, 10);
+    if (!Number.isFinite(unix) || unix <= 0) return "Never";
+
+    const nowMs = Date.now();
+    const lastMs = unix * 1000;
+    if (!Number.isFinite(lastMs) || lastMs <= 0) return "Never";
+
+    const diffMs = Math.max(0, nowMs - lastMs);
+    const days = Math.floor(diffMs / 86400000);
+
+    if (days <= 0) return "Today";
+    if (days === 1) return "1 day ago";
+    return `${days} days ago`;
 }
 
 function truncateWords(text, limit) {

@@ -256,11 +256,12 @@ body {
 
 .es-center-footer {
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
   bottom: 0;
-  width: 78%;
+  width: 100%;
   height: 18rem;
-  transform: translateX(-50%);
+  transform: none;
 }
 
 .es-preview-column {
@@ -379,6 +380,48 @@ body {
   font-family: "Roboto-Bold", "Trebuchet MS", sans-serif;
 }
 
+.es-user-stats {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 0.25rem;
+  min-width: 0;
+}
+
+.es-user-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.42rem;
+  padding: 0.42rem 0.62rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 214, 144, 0.42);
+  background: rgba(8, 8, 8, 0.45);
+  color: rgba(246, 237, 214, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(255, 250, 230, 0.06);
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.es-user-stat strong {
+  font-size: 1.5rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: rgba(255, 246, 223, 0.98);
+  font-family: "Roboto-Bold", "Trebuchet MS", sans-serif;
+}
+
+.es-user-stat em {
+  font-style: normal;
+  font-size: 1.02rem;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(239, 214, 159, 0.92);
+  font-family: "Roboto-Bold", "Trebuchet MS", sans-serif;
+}
+
 .es-preview-panel::after {
   content: none;
 }
@@ -410,12 +453,18 @@ body {
 
 .es-badge-band {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.1fr) auto;
   gap: 0.65rem;
   align-items: start;
   width: 100%;
   justify-self: stretch;
   margin-top: 0;
+}
+
+.es-stats-panel {
+  justify-self: end;
+  width: fit-content;
+  min-width: 20rem;
 }
 
 .es-tag-panel {
