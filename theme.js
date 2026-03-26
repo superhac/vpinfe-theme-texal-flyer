@@ -39,20 +39,17 @@ async function receiveEvent(message) {
     if (message.type === "TableIndexUpdate") {
         currentTableIndex = message.index;
         updateScreen();
-    } else if (message.type === "TableLaunching") {
-        if (windowName === "table") vpin.stopTableAudio();
+    }
+    else if (message.type === "TableLaunching") {
         fadeOut();
     } else if (message.type === "TableLaunchComplete") {
         fadeIn();
-        if (windowName === "table") vpin.playTableAudio(currentTableIndex);
     } else if (message.type === "RemoteLaunching") {
-        if (windowName === "table") vpin.stopTableAudio();
         showRemoteLaunchOverlay(message.table_name);
         fadeOut();
     } else if (message.type === "RemoteLaunchComplete") {
         hideRemoteLaunchOverlay();
         fadeIn();
-        if (windowName === "table") vpin.playTableAudio(currentTableIndex);
     } else if (message.type === "TableDataChange") {
         currentTableIndex = message.index;
         updateScreen();
@@ -80,7 +77,7 @@ async function handleInput(input) {
             });
             break;
         case "joyselect":
-            if (windowName === "table") vpin.stopTableAudio();
+            vpin.stopTableAudio();
             vpin.sendMessageToAllWindows({ type: "TableLaunching" });
             await fadeOut();
             await vpin.launchTable(currentTableIndex);
