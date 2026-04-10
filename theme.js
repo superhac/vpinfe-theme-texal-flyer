@@ -137,12 +137,8 @@ function updateBGWindow() {
     }
 
     const bgUrl = vpin.getImageURL(currentTableIndex, "bg");
-    container.replaceChildren();
-
-    const img = document.createElement("img");
-    img.style.cssText = "width: 100%; height: 100%; object-fit: cover;";
-    img.src = bgUrl;
-    container.appendChild(img);
+    const bgVideoUrl = vpin.getVideoURL(currentTableIndex, "bg");
+    renderWindowMedia(container, bgUrl, bgVideoUrl, "Backglass");
 }
 
 function updateDMDWindow() {
@@ -153,13 +149,8 @@ function updateDMDWindow() {
     }
 
     const dmdUrl = vpin.getImageURL(currentTableIndex, "dmd");
-    let img = container.querySelector("img");
-    if (!img) {
-        img = document.createElement("img");
-        img.style.cssText = "width: 100%; height: 100%; object-fit: cover;";
-        container.appendChild(img);
-    }
-    img.src = dmdUrl;
+    const dmdVideoUrl = vpin.getVideoURL(currentTableIndex, "dmd");
+    renderWindowMedia(container, dmdUrl, dmdVideoUrl, "DMD");
 }
 
 function ensureTableView(container) {
@@ -1005,6 +996,47 @@ function isTruthyFlag(value) {
 
 function hasUsableMedia(url) {
     return Boolean(url) && !String(url).includes("file_missing");
+}
+
+function renderWindowMedia(container, imageUrl, videoUrl, altText) {
+    const existingMedia = container.querySelector("video, img");
+    const wantsVideo = hasUsableMedia(videoUrl);
+
+    if (existingMedia) {
+        if (existingMedia.tagName === "VIDEO") {
+            existingMedia.pause();
+            existingMedia.removeAttribute("src");
+            existingMedia.load();
+        }
+        existingMedia.remove();
+    }
+
+    if (wantsVideo) {
+        const video = document.createElement("video");
+        video.src = videoUrl;
+        video.poster = hasUsableMedia(imageUrl) ? imageUrl : "";
+        video.autoplay = true;
+        video.loop = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.style.cssText = "width: 100%; height: 100%; object-fit: cover;";
+        video.onerror = () => {
+            if (!hasUsableMedia(imageUrl)) return;
+            const fallback = document.createElement("img");
+            fallback.src = imageUrl;
+            fallback.alt = altText;
+            fallback.style.cssText = "width: 100%; height: 100%; object-fit: cover;";
+            video.replaceWith(fallback);
+        };
+        container.appendChild(video);
+        return;
+    }
+
+    const img = document.createElement("img");
+    img.src = hasUsableMedia(imageUrl) ? imageUrl : "";
+    img.alt = altText;
+    img.style.cssText = "width: 100%; height: 100%; object-fit: cover;";
+    container.appendChild(img);
 }
 
 function coalesce(...values) {
