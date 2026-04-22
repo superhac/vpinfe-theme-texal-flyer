@@ -15,6 +15,7 @@ let rightStageDriftTween = null;
 let selectorPulseTween = null;
 let rippleTimelines = [];
 let selectorFrameTimeline = null;
+let titleRatingToken = 0;
 
 const mediaPreloadCache = new Map();
 
@@ -116,6 +117,7 @@ function updateTableWindow() {
     updateBackdrop(tableView, data.bgUrl);
     updateSystemHeader(tableView, data);
     updateTitleBlock(tableView, data);
+    updateVPinPlayTitleRating(tableView, currentTableIndex);
     updateMetadata(tableView, data);
     updatePreviewFooter(tableView, data);
     updateFeatureStrip(tableView.featureStrip, data.features);
@@ -172,7 +174,10 @@ function ensureTableView(container) {
         <div class="es-screen-title">
             <div class="es-screen-title-wheel"></div>
             <div class="es-screen-title-copy">
-                <h1 class="es-title-text"></h1>
+                <div class="es-title-row">
+                    <h1 class="es-title-text"></h1>
+                    <div class="es-vpinplay-rating" hidden></div>
+                </div>
                 <div class="es-author-text"></div>
                 <div class="es-preview-meta"></div>
             </div>
@@ -257,7 +262,9 @@ function ensureTableView(container) {
         rightStageRipples: [...theme.querySelectorAll(".es-right-stage-ripple")],
         systemMark: theme.querySelector(".es-system-mark"),
         headerWheel: theme.querySelector(".es-screen-title-wheel"),
+        titleRow: theme.querySelector(".es-title-row"),
         titleText: theme.querySelector(".es-title-text"),
+        vpinplayRating: theme.querySelector(".es-vpinplay-rating"),
         authorText: theme.querySelector(".es-author-text"),
         metaGrid: theme.querySelector(".es-meta-grid"),
         previewPanel: theme.querySelector(".es-preview-panel"),
@@ -288,6 +295,7 @@ function getDisplayData(index) {
     const plays = coalesce(info.playcount, info.PlayCount, vpx.playcount, vpx.PlayCount, "Unknown");
     const lastPlayed = coalesce(info.lastplayed, info.LastPlayed, vpx.lastplayed, vpx.LastPlayed, "Unknown");
     const rating = coalesce(info.rating, info.Rating, vpx.rating, vpx.Rating, "N/A");
+    const userRating = Number.parseFloat(coalesce(user.Rating, user.rating, 0));
     const startCount = Number.parseInt(coalesce(user.StartCount, user.startcount, 0), 10);
     const runtimeMinutes = Number.parseInt(coalesce(user.RunTime, user.runtime, 0), 10);
     const lastRunUnix = Number.parseInt(coalesce(user.LastRun, user.lastrun, 0), 10);
@@ -302,6 +310,7 @@ function getDisplayData(index) {
         plays: String(plays),
         lastPlayed: formatLastPlayed(lastPlayed),
         rating: String(rating),
+        userRating: Number.isFinite(userRating) ? clamp(userRating, 0, 5) : 0,
         startCount: Number.isFinite(startCount) && startCount >= 0 ? startCount : 0,
         runtimeMinutes: Number.isFinite(runtimeMinutes) && runtimeMinutes >= 0 ? runtimeMinutes : 0,
         lastRunUnix: Number.isFinite(lastRunUnix) && lastRunUnix > 0 ? lastRunUnix : 0,
@@ -399,21 +408,95 @@ function updateBackdrop(view, bgUrl) {
         return;
     }
 
-    const fadeLayer = document.createElement("div");
-    fadeLayer.className = "es-backdrop-fade";
-    fadeLayer.appendChild(media);
-    view.theme.prepend(fadeLayer);
-    requestAnimationFrame(() => fadeLayer.classList.add("is-active"));
-    setTimeout(() => {
-        view.backdrop.replaceChildren(createBackdropMedia(bgUrl));
-        view.backdrop.dataset.url = targetUrl;
-        fadeLayer.remove();
-    }, 260);
+    const transitionToken = String(Date.now()) + Math.random().toString(16).slice(2);
+    view.backdrop.dataset.transitionToken = transitionToken;
+
+    const commitBackdropSwap = () => {
+        if (view.backdrop.dataset.transitionToken !== transitionToken) return;
+        const fadeLayer = document.createElement("div");
+        fadeLayer.className = "es-backdrop-fade";
+        fadeLayer.appendChild(media);
+        view.backdrop.appendChild(fadeLayer);
+
+        requestAnimationFrame(() => fadeLayer.classList.add("is-active"));
+        setTimeout(() => {
+            if (view.backdrop.dataset.transitionToken !== transitionToken) return;
+            view.backdrop.replaceChildren(media);
+            view.backdrop.dataset.url = targetUrl;
+        }, 260);
+    };
+
+    const finalize = () => {
+        if (view.backdrop.dataset.pendingUrl !== targetUrl) return;
+        delete view.backdrop.dataset.pendingUrl;
+        commitBackdropSwap();
+    };
+
+    view.backdrop.dataset.pendingUrl = targetUrl;
+
+    media.addEventListener("load", finalize, { once: true });
+    media.addEventListener("error", () => {
+        if (view.backdrop.dataset.pendingUrl === targetUrl) {
+            delete view.backdrop.dataset.pendingUrl;
+        }
+    }, { once: true });
+
+    if (media.complete) {
+        finalize();
+    } else if (typeof media.decode === "function") {
+        media.decode().then(finalize).catch(() => {});
+    }
 }
 
 function updateTitleBlock(view, data) {
     view.titleText.textContent = data.title;
     view.authorText.textContent = data.authors;
+}
+
+function updateVPinPlayTitleRating(view, index) {
+    if (!view.vpinplayRating) return;
+
+    const render = (payload) => {
+        if (!view.vpinplayRating) return;
+
+        const cumulativeRating = payload?.cumulativeRating;
+        const ratingCount = payload?.ratingCount ?? 0;
+        if (!Number.isFinite(cumulativeRating) || cumulativeRating <= 0) {
+            view.vpinplayRating.hidden = true;
+            view.vpinplayRating.textContent = "";
+            view.vpinplayRating.removeAttribute("title");
+            return;
+        }
+
+        const starValue = normalizeVPinPlayStars(cumulativeRating);
+        if (ratingCount <= 0 || starValue <= 0) {
+            view.vpinplayRating.hidden = true;
+            view.vpinplayRating.textContent = "";
+            view.vpinplayRating.removeAttribute("title");
+            return;
+        }
+
+        const starText = formatStarRating(starValue);
+        const scoreText = Number.isInteger(cumulativeRating) ? String(cumulativeRating) : Number(cumulativeRating).toFixed(1);
+        const votesLabel = ratingCount === 1 ? "rating" : "ratings";
+        view.vpinplayRating.hidden = false;
+        view.vpinplayRating.innerHTML = `
+            <img class="es-vpinplay-rating-logo" src="/web/images/VPinPlay_Logo_1.0.png" alt="VPinPlay">
+            <span class="es-vpinplay-rating-stars" aria-label="${escapeHtml(starValue.toFixed(1))} out of 5 stars">${renderStarMarkup(starValue)}</span>
+        `;
+        view.vpinplayRating.title = `${scoreText} cumulative VPinPlay rating${ratingCount > 0 ? ` from ${ratingCount} ${votesLabel}` : ""}`;
+    };
+
+    render(vpin.getCachedVPinPlayRating(index));
+
+    const token = ++titleRatingToken;
+    vpin.getVPinPlayRating(index).then((payload) => {
+        if (token !== titleRatingToken || index !== currentTableIndex) return;
+        render(payload);
+    }).catch(() => {
+        if (token !== titleRatingToken || index !== currentTableIndex) return;
+        render(null);
+    });
 }
 
 function updateSystemHeader(view, data) {
@@ -450,7 +533,13 @@ function updateMetadata(view, data) {
 
     const playsLabel = data.startCount === 1 ? "Play" : "Plays";
     const minutesLabel = data.runtimeMinutes === 1 ? "Minute" : "Minutes";
+    const ratingValue = Number.isFinite(data.userRating) ? data.userRating : 0;
+    const ratingStars = formatStarRating(ratingValue);
     view.userStats.innerHTML = `
+        <span class="es-user-stat es-user-stat-rating" title="User rating: ${escapeHtml(ratingValue.toFixed(1))} / 5">
+            <em>My Rating</em>
+            <strong aria-label="${escapeHtml(ratingValue.toFixed(1))} out of 5 stars">${escapeHtml(ratingStars)}</strong>
+        </span>
         <span class="es-user-stat">
             <em>${playsLabel}</em>
             <strong>${escapeHtml(data.startCount)}</strong>
@@ -684,17 +773,17 @@ function animateTableSelection(view) {
         headerTargets,
         {
             opacity: 0.16,
-            x: direction * 34,
-            y: -10,
-            scale: 0.94
+            x: direction * 14,
+            y: -4,
+            scale: 0.985
         },
         {
             opacity: 1,
             x: 0,
             y: 0,
             scale: 1,
-            duration: 0.7,
-            ease: "power3.out",
+            duration: 0.3,
+            ease: "power2.out",
             stagger: 0.08
         }
     );
@@ -703,16 +792,16 @@ function animateTableSelection(view) {
         view.previewStack,
         {
             opacity: 0.22,
-            x: direction * 52,
-            scale: 0.9,
-            rotate: direction * 1.25
+            x: direction * 18,
+            scale: 0.985,
+            rotate: direction * 0.25
         },
         {
             opacity: 1,
             x: 0,
             scale: 1,
             rotate: 0,
-            duration: 0.82,
+            duration: 0.28,
             ease: "power3.out"
         }
     );
@@ -756,9 +845,9 @@ function animateTableSelection(view) {
         gsap.fromTo(
             activeItem,
             {
-                x: lastMoveDirection > 0 ? 26 : -26,
-                scaleX: 0.92,
-                scaleY: 0.86,
+                x: lastMoveDirection > 0 ? 14 : -14,
+                scaleX: 0.97,
+                scaleY: 0.95,
                 filter: "brightness(1.35)"
             },
             {
@@ -766,8 +855,8 @@ function animateTableSelection(view) {
                 scaleX: 1,
                 scaleY: 1,
                 filter: "brightness(1)",
-                duration: 0.42,
-                ease: "back.out(2.2)"
+                duration: 0.24,
+                ease: "power2.out"
             }
         );
         if (scan) {
@@ -787,16 +876,10 @@ function animateTableSelection(view) {
 
     if (view.listSelector) {
         gsap.killTweensOf(view.listSelector);
-        gsap.fromTo(
-            view.listSelector,
-            { boxShadow: "0 0 0 rgba(255, 198, 106, 0)", opacity: 0.82 },
-            {
-                boxShadow: "0 0 28px rgba(255, 198, 106, 0.28), inset 0 0 0 1px rgba(255, 244, 213, 0.55)",
-                opacity: 1,
-                duration: 0.34,
-                ease: "power2.out"
-            }
-        );
+        gsap.set(view.listSelector, {
+            boxShadow: "0 0 24px rgba(255, 198, 106, 0.24), inset 0 0 0 1px rgba(255, 244, 213, 0.5)",
+            opacity: 1
+        });
     }
 }
 
@@ -862,33 +945,6 @@ function ensureSelectorPanelEffects(view) {
             rippleTimelines.push(timeline);
         });
     }
-
-    if (view.listSelector && !selectorPulseTween) {
-        selectorPulseTween = gsap.to(view.listSelector, {
-            boxShadow: "0 0 46px rgba(255, 198, 106, 0.5), inset 0 0 0 2px rgba(255, 244, 213, 0.95)",
-            opacity: 1,
-            duration: 0.8,
-            ease: "sine.inOut",
-            repeat: -1,
-            yoyo: true
-        });
-    }
-
-    if (view.listSelector && !selectorFrameTimeline) {
-        const outline = view.listSelector.querySelector(".es-list-selector-outline");
-        selectorFrameTimeline = gsap.timeline({ repeat: -1, yoyo: true });
-
-        if (outline) {
-            selectorFrameTimeline.to(outline, {
-                scaleX: 1.025,
-                scaleY: 1.08,
-                opacity: 1,
-                duration: 0.7,
-                ease: "power2.inOut"
-            }, 0);
-        }
-    }
-
 }
 
 function preloadNearbyMedia() {
@@ -980,6 +1036,25 @@ function formatUnixLastRun(value) {
     return `${days} days ago`;
 }
 
+function formatStarRating(value) {
+    const normalized = Number.isFinite(value) ? clamp(Math.round(value), 0, 5) : 0;
+    return "★".repeat(normalized) + "☆".repeat(5 - normalized);
+}
+
+function renderStarMarkup(value) {
+    const normalized = Number.isFinite(value) ? clamp(Math.round(value), 0, 5) : 0;
+    return Array.from({ length: 5 }, (_, index) => {
+        const filled = index < normalized;
+        return `<span class="es-vpinplay-star${filled ? " is-filled" : ""}">${filled ? "★" : "☆"}</span>`;
+    }).join("");
+}
+
+function normalizeVPinPlayStars(value) {
+    if (!Number.isFinite(value)) return 0;
+    if (value <= 5) return clamp(value, 0, 5);
+    return clamp(value / 20, 0, 5);
+}
+
 function truncateWords(text, limit) {
     const words = text.split(/\s+/).filter(Boolean);
     if (words.length <= limit) return text;
@@ -996,6 +1071,10 @@ function isTruthyFlag(value) {
 
 function hasUsableMedia(url) {
     return Boolean(url) && !String(url).includes("file_missing");
+}
+
+function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
 }
 
 function renderWindowMedia(container, imageUrl, videoUrl, altText) {
