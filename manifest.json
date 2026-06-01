@@ -1,10 +1,10 @@
 {
   "name": "Texal Flyer",
-  "version": "1.3",
+  "version": "1.4",
   "author": "superhac",
   "description": "A desktop pinball showcase theme with media-rich browsing and animated selection flow.",
   "preview_image": "preview.png",
   "supported_screens": 3,
   "type": "desktop",
-  "change_log": "Fix scaling"
+  "change_log": "adjust navigaton panel fonts a bit larger."
 }

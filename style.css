@@ -819,7 +819,7 @@ body.collection-wheel-mode .es-list-selector {
   height: 100%;
   padding: 0 0.7rem;
   color: rgba(245, 241, 233, 0.72);
-  font-size: 1.76rem;
+  font-size: 1.95rem;
   line-height: 1;
   letter-spacing: 0;
   font-family: "RocketCommandExpanded", "Roboto-Bold", "Arial Narrow", "Franklin Gothic Medium", "Helvetica Neue", sans-serif;
@@ -1046,6 +1046,6 @@ body.collection-wheel-mode .es-list-item {
 
   .es-list-item {
     padding: 0 0.55rem;
-    font-size: 1.5rem;
+    font-size: 1.72rem;
   }
 }
