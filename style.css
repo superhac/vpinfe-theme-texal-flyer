@@ -155,6 +155,11 @@ body {
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
 }
 
+body.collection-wheel-mode .es-screen-title-wheel img {
+  max-width: 72%;
+  max-height: 72%;
+}
+
 .es-screen-title-copy {
   display: grid;
   row-gap: 0.45rem;
@@ -204,6 +209,13 @@ body {
   object-fit: contain;
   object-position: center center;
   display: block;
+}
+
+body.collection-wheel-mode .es-preview-layer img {
+  width: auto;
+  max-width: 72%;
+  max-height: 72%;
+  margin: auto;
 }
 
 .es-art-fallback {
@@ -612,6 +624,14 @@ body {
   object-fit: contain;
 }
 
+body.collection-wheel-mode .es-preview-table-slot .es-preview-layer img {
+  width: auto;
+  height: auto;
+  max-width: 72%;
+  max-height: 72%;
+  transform: none;
+}
+
 .es-footer-mark {
   display: flex;
   align-items: center;
@@ -722,6 +742,24 @@ body {
   border-radius: 0.35rem;
 }
 
+body.collection-wheel-mode .es-system-mark img,
+body.collection-wheel-mode .es-system-mark .es-system-mark-media {
+  width: auto;
+  height: auto;
+  max-width: 72%;
+  max-height: 72%;
+  object-fit: contain;
+}
+
+body.collection-wheel-mode .es-system-mark {
+  background: rgba(0, 0, 0, 0.34);
+}
+
+body.collection-wheel-mode .es-list-selector {
+  background: linear-gradient(90deg, rgba(35, 210, 220, 0.14), rgba(115, 235, 255, 0.3), rgba(35, 210, 220, 0.14));
+  box-shadow: inset 0 0 0 2px rgba(115, 235, 255, 0.58);
+}
+
 .es-list {
   position: relative;
   z-index: 2;
@@ -797,6 +835,23 @@ body {
   z-index: 2;
 }
 
+.es-list-item-thumb {
+  position: relative;
+  z-index: 2;
+  display: none;
+  flex: 0 0 2.1rem;
+  width: 2.1rem;
+  height: 2.1rem;
+  margin-right: 0.55rem;
+  object-fit: contain;
+  border-radius: 0.25rem;
+  filter: drop-shadow(0 0 0.35rem rgba(0, 0, 0, 0.55));
+}
+
+body.collection-wheel-mode .es-list-item {
+  padding-left: 0.52rem;
+}
+
 .es-list-item.active .es-list-item-label {
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.34), 0 0 18px rgba(255, 198, 106, 0.22);
 }
@@ -870,4 +925,127 @@ body {
 
 #fadeOverlay.show {
   opacity: 1;
+}
+
+@media (max-width: 1500px), (max-height: 1000px) {
+  html,
+  body {
+    font-size: clamp(7px, min(0.78vh, 0.48vw), 12px);
+  }
+
+  .es-main-shell {
+    --es-selector-inset: 0.35rem;
+    grid-template-columns: minmax(0, calc(75% + var(--es-selector-inset))) minmax(21rem, calc(25% - var(--es-selector-inset)));
+    gap: 0.8rem;
+    padding: 1.6rem 1.45rem 1.2rem;
+  }
+
+  .es-screen-title {
+    top: 1.45rem;
+    left: 1.45rem;
+    right: calc(25% + 1.45rem);
+    column-gap: 1rem;
+  }
+
+  .es-screen-title-wheel {
+    width: 11rem;
+    min-height: 11rem;
+  }
+
+  .es-title-row {
+    column-gap: 0.75rem;
+  }
+
+  .es-title-text {
+    font-size: clamp(3.65rem, 4.1vw, 5.5rem);
+    line-height: 0.92;
+  }
+
+  .es-author-text {
+    font-size: 2.55rem;
+  }
+
+  .es-preview-meta {
+    font-size: 1.55rem;
+  }
+
+  .es-vpinplay-rating {
+    width: 8rem;
+    min-width: 8rem;
+  }
+
+  .es-center-stage {
+    padding-top: 22.5rem;
+  }
+
+  .es-center-footer {
+    height: 14.5rem;
+  }
+
+  .es-preview-column {
+    width: 92%;
+    height: calc(100% - 14.5rem);
+  }
+
+  .es-preview-panel {
+    overflow: hidden;
+  }
+
+  .es-preview-composite {
+    gap: 2rem;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .es-preview-table-slot,
+  .es-preview-flyer-slot {
+    height: min(45vh, 58rem);
+    max-width: 46%;
+    max-height: min(45vh, 58rem);
+    overflow: hidden;
+  }
+
+  .es-preview-flyer-image {
+    height: min(45vh, 58rem);
+    max-width: 100%;
+    max-height: min(45vh, 58rem);
+  }
+
+  .es-preview-table-slot .es-preview-layer img,
+  .es-preview-table-slot .es-preview-layer video {
+    max-width: 100%;
+    max-height: 100%;
+  }
+
+  .es-tag-panel {
+    padding: 1.25rem 1.55rem 1.45rem;
+    min-height: 13.2rem;
+  }
+
+  .es-tag-title {
+    margin-bottom: 0.8rem;
+    font-size: 2.2rem;
+  }
+
+  .es-tag-strip {
+    gap: 0.5rem;
+  }
+
+  .es-tag {
+    padding: 0.52rem 0.9rem;
+    font-size: 1.75rem;
+  }
+
+  .es-system-panel {
+    padding: 0.55rem 0.55rem 0.7rem;
+  }
+
+  .es-list {
+    margin: 0 0.5rem 0.7rem;
+  }
+
+  .es-list-item {
+    padding: 0 0.55rem;
+    font-size: 1.5rem;
+  }
 }
